@@ -1,0 +1,120 @@
+import mysql.connector
+
+# Database connection details
+HOST = "localhost"
+USER = "your_username"  # Replace with your MySQL username
+PASSWORD = "your_password"  # Replace with your MySQL password
+
+try:
+    # Step 1: Connect to MySQL Server (Without selecting a database first)
+    conn = mysql.connector.connect(host=HOST, user=USER, password=PASSWORD)
+    cursor = conn.cursor()
+
+    # Step 2: Ask user for the database name
+    DB_NAME = input("🔹 Enter the name of the database you want to create/connect to: ").strip()
+
+    # Step 3: Check if the database exists, if not, create it
+    cursor.execute("SHOW DATABASES;")
+    databases = [db[0] for db in cursor.fetchall()]
+    
+    if DB_NAME not in databases:
+        cursor.execute(f"CREATE DATABASE {DB_NAME};")
+        print(f"✅ Database '{DB_NAME}' created.")
+    else:
+        print(f"✅ Database '{DB_NAME}' already exists.")
+
+    # Step 4: Connect to the created or existing database
+    conn.database = DB_NAME
+
+    # Step 5: Create a table with user-defined structure
+    table_name = input("🔹 Enter table name: ").strip()
+    columns = []
+
+    while True:
+        col_name = input("🔹 Enter column name (or type 'done' to finish): ").strip()
+        if col_name.lower() == 'done':
+            break
+        col_type = input(f"🔹 Enter datatype for {col_name} (e.g., INT, VARCHAR(255)): ").strip()
+        constraints = input(f"🔹 Enter constraints for {col_name} (e.g., PRIMARY KEY, NOT NULL, AUTO_INCREMENT, or press enter to skip): ").strip()
+
+        # Ensure primary key is auto-incremented
+        if "PRIMARY KEY" in constraints and "AUTO_INCREMENT" not in constraints:
+            constraints += " AUTO_INCREMENT"
+
+        column_def = f"{col_name} {col_type} {constraints}".strip()
+        columns.append(column_def)
+
+    columns_sql = ", ".join(columns)
+    cursor.execute(f"CREATE TABLE IF NOT EXISTS {table_name} ({columns_sql});")
+    print(f"✅ Table '{table_name}' created successfully.")
+
+    # Step 6: Insert data into the table
+    while True:
+        insert_values = input(f"🔹 Enter values for {table_name} (comma-separated, or type 'done' to stop inserting): ").strip()
+        if insert_values.lower() == 'done':
+            break
+
+        values = tuple(map(str.strip, insert_values.split(",")))
+        placeholders = ", ".join(["%s"] * len(values))
+        try:
+            cursor.execute(f"INSERT INTO {table_name} VALUES ({placeholders});", values)
+            conn.commit()
+            print("✅ Record inserted successfully.")
+        except mysql.connector.Error as err:
+            print(f"❌ Error inserting data: {err}")
+
+    # Step 7: Update a record
+    update_col = input(f"🔹 Enter column to update in {table_name}: ").strip()
+    update_value = input(f"🔹 Enter new value for {update_col}: ").strip()
+    condition_col = input("🔹 Enter column for condition (WHERE clause): ").strip()
+    condition_value = input("🔹 Enter value for condition: ").strip()
+
+    try:
+        cursor.execute(f"UPDATE {table_name} SET {update_col} = %s WHERE {condition_col} = %s;", (update_value, condition_value))
+        conn.commit()
+        print("✅ Record updated successfully.")
+    except mysql.connector.Error as err:
+        print(f"❌ Error updating data: {err}")
+
+    # Step 8: Delete a record
+    delete_condition_col = input(f"🔹 Enter column for deletion condition in {table_name}: ").strip()
+    delete_condition_value = input(f"🔹 Enter value for deletion: ").strip()
+
+    try:
+        cursor.execute(f"DELETE FROM {table_name} WHERE {delete_condition_col} = %s;", (delete_condition_value,))
+        conn.commit()
+        print("✅ Record deleted successfully.")
+    except mysql.connector.Error as err:
+        print(f"❌ Error deleting data: {err}")
+
+    # Step 9: Select and display records
+    select_option = input("🔹 Do you want to select all records (yes) or filter by ID (no)? ").strip().lower()
+    
+    try:
+        if select_option == "yes":
+            cursor.execute(f"SELECT * FROM {table_name};")
+        else:
+            record_id = input("🔹 Enter ID to filter: ").strip()
+            id_column = input("🔹 Enter the name of the ID column: ").strip()
+            cursor.execute(f"SELECT * FROM {table_name} WHERE {id_column} = %s;", (record_id,))
+        
+        rows = cursor.fetchall()
+        if rows:
+            print("✅ Retrieved Records:")
+            for row in rows:
+                print(row)
+        else:
+            print("❌ No records found.")
+    except mysql.connector.Error as err:
+        print(f"❌ Error fetching data: {err}")
+
+except mysql.connector.Error as err:
+    print(f"❌ Error connecting to MySQL: {err}")
+
+finally:
+    # Close connection
+    if 'cursor' in locals():
+        cursor.close()
+    if 'conn' in locals() and conn.is_connected():
+        conn.close()
+    print("✅ Database connection closed.")
